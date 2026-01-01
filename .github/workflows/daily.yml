@@ -26,7 +26,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python generator.py
 
-- name: Commit and Push JSON
+      - name: Commit and Push JSON
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
