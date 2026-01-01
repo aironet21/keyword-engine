@@ -30,6 +30,12 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          
+          # Ambil perubahan terbaru dari server agar tidak konflik
+          git pull origin main --rebase
+          
           git add data/*.json || echo "No changes to add"
           git commit -m "Auto-update keywords $(date)" || echo "No changes to commit"
-          git push
+          
+          # Push hasil final
+          git push origin main
