@@ -26,16 +26,24 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python generator.py
 
-      - name: Commit and Push JSON
+- name: Commit and Push JSON
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # Ambil perubahan terbaru dari server agar tidak konflik
+          # 1. Tandai semua perubahan (file JSON baru)
+          git add data/*.json
+          
+          # 2. Simpan sementara perubahan agar folder bersih
+          git stash
+          
+          # 3. Ambil update terbaru dari GitHub (misal jika Anda baru edit file di browser)
           git pull origin main --rebase
           
-          git add data/*.json || echo "No changes to add"
-          git commit -m "Auto-update keywords $(date)" || echo "No changes to commit"
+          # 4. Kembalikan file JSON yang tadi disimpan
+          git stash pop || echo "Tidak ada perubahan untuk dikembalikan"
           
-          # Push hasil final
+          # 5. Commit dan Push
+          git add data/*.json
+          git commit -m "Auto-update keywords $(date)" || echo "No changes to commit"
           git push origin main
