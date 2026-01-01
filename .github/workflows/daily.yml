@@ -1,19 +1,21 @@
 name: Auto Keyword Generator
+
 on:
   schedule:
-    - cron: '0 0 * * *' # Setiap jam 12 malam
-  workflow_dispatch: # Tombol manual untuk tes
+    - cron: '0 0 * * *' # Berjalan setiap jam 12 malam
+  workflow_dispatch: # Tombol manual
 
 jobs:
-  build:
+  run-generator:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Penting agar bot bisa simpan file JSON ke repo
+      contents: write
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
@@ -21,29 +23,23 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run Generator
+      - name: Run Engine
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python generator.py
 
-      - name: Commit and Push JSON
+      - name: Commit and Push Changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # 1. Tandai semua perubahan (file JSON baru)
+          # Ambil data terbaru dari server untuk menghindari konflik
           git add data/*.json
-          
-          # 2. Simpan sementara perubahan agar folder bersih
           git stash
-          
-          # 3. Ambil update terbaru dari GitHub (misal jika Anda baru edit file di browser)
           git pull origin main --rebase
+          git stash pop || echo "Tidak ada perubahan untuk digabung"
           
-          # 4. Kembalikan file JSON yang tadi disimpan
-          git stash pop || echo "Tidak ada perubahan untuk dikembalikan"
-          
-          # 5. Commit dan Push
+          # Simpan hasil generate terbaru
           git add data/*.json
-          git commit -m "Auto-update keywords $(date)" || echo "No changes to commit"
+          git commit -m "Update keywords: $(date)" || echo "Tidak ada perubahan data"
           git push origin main
