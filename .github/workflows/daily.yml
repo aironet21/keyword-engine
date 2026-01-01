@@ -1,37 +1,35 @@
 name: Auto Keyword Generator
 on:
-  workflow_dispatch: # Agar kita bisa klik tombol "Run Workflow" secara manual
+  schedule:
+    - cron: '0 0 * * *' # Setiap jam 12 malam
+  workflow_dispatch: # Tombol manual untuk tes
 
 jobs:
-  debug-and-run:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Penting agar bot bisa simpan file JSON ke repo
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: LIHAT DAFTAR FILE (Detective Step)
-        run: |
-          echo "SAYA BERADA DI DIREKTORI:"
-          pwd
-          echo "---"
-          echo "DAFTAR SEMUA FILE DI REPO INI:"
-          ls -R
-          echo "---"
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Jalankan Python (Dengan Penanganan Error)
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Generator
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python generator.py
+
+      - name: Commit and Push JSON
         run: |
-          if [ -f "generator.py" ]; then
-            python generator.py
-          elif [ -f "Generator.py" ]; then
-            python Generator.py
-          else
-            echo "ERROR: File generator.py BENAR-BENAR TIDAK ADA."
-            exit 1
-          fi
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/*.json || echo "No changes to add"
+          git commit -m "Auto-update keywords $(date)" || echo "No changes to commit"
+          git push
