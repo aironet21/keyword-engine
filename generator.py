@@ -5,37 +5,38 @@ import time
 import random
 from datetime import datetime
 
-# Ambil API Key dari GitHub Secrets
 AI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Daftar Akun dan Niche (Bisa ditambah sesuka hati)
 ACCOUNTS = [
-    {"id": "user_tekno", "niche": "teknologi gadget, AI terbaru, dan software"},
-    {"id": "user_finance", "niche": "investasi saham, crypto, dan keuangan pribadi"}
+    {"id": "user_tekno", "niche": "teknologi gadget dan AI"},
+    {"id": "user_finance", "niche": "investasi dan crypto"}
 ]
 
 def get_ai_topics(niche):
-    """Meminta AI generate 15 topik unik setiap hari"""
+    # Jika API Key tidak ada, langsung gunakan fallback
+    if not AI_API_KEY:
+        return [niche]
+        
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={AI_API_KEY}"
-    
-    # Menambahkan random integer agar AI tidak memberi jawaban cache yang sama
-    seed = random.randint(1, 9999)
-    prompt = f"Berikan 15 topik pencarian singkat yang sangat spesifik dan tren hari ini tentang {niche}. Berikan hasil dalam daftar kata saja dipisahkan koma. Unique ID: {seed}"
+    prompt = f"Berikan 10 topik singkat tentang {niche} yang sedang tren. Hanya berikan kata kunci dipisahkan koma saja tanpa kalimat pembuka."
     
     try:
-        response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
-        data = response.json()
-        text = data['candidates'][0]['content']['parts'][0]['text']
-        return [t.strip() for t in text.split(",")]
+        response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+        res_json = response.json()
+        # Mengambil teks dengan lebih aman
+        text = res_json['candidates'][0]['content']['parts'][0]['text']
+        topics = [t.strip() for t in text.split(",") if len(t.strip()) > 2]
+        return topics if topics else [niche]
     except Exception as e:
         print(f"AI Error: {e}")
-        return []
+        return [niche] # Gunakan niche sebagai topik utama jika AI gagal
 
 def get_suggestions(query):
-    """Scraping Google Autocomplete secara aman"""
+    # Menggunakan User-Agent agar tidak dianggap bot oleh Google
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
     url = f"http://google.com/complete/search?client=chrome&q={query}"
     try:
-        r = requests.get(url, timeout=5)
+        r = requests.get(url, headers=headers, timeout=5)
         if r.status_code == 200:
             return r.json()[1]
     except:
@@ -43,48 +44,41 @@ def get_suggestions(query):
     return []
 
 def main():
-    if not os.path.exists('data'):
-        os.makedirs('data')
+    if not os.path.exists('data'): os.makedirs('data')
 
     for acc in ACCOUNTS:
-        print(f"--- Memproses Akun: {acc['id']} ---")
         final_keywords = set()
+        topics = get_ai_topics(acc['niche'])
         
-        # 1. Dapatkan ide topik dari AI
-        main_topics = get_ai_topics(acc['niche'])
-        print(f"AI menghasilkan {len(main_topics)} topik utama.")
+        # Tambahkan niche asli ke daftar topik untuk memastikan hasil tidak nol
+        topics.append(acc['niche'])
         
-        for topic in main_topics:
+        for t in topics:
             if len(final_keywords) >= 60: break
             
-            # 2. Cari cabang topik di Google
-            level1 = get_suggestions(topic)
-            time.sleep(0.3) # Anti-block
-            
-            for sub in level1[:5]: # Ambil 5 cabang
-                if len(final_keywords) >= 60: break
+            # Ambil level 1
+            suggs = get_suggestions(t)
+            for s in suggs[:6]: # Perbanyak cabang di level 1
+                final_keywords.add(s)
                 
-                # 3. Cari detail keyword (berantai)
-                level2 = get_suggestions(sub)
-                for leaf in level2[:3]: # Ambil 3 detail
+                # Ambil level 2 (Berantai)
+                details = get_suggestions(s)
+                for d in details[:3]:
+                    final_keywords.add(d)
                     if len(final_keywords) >= 60: break
-                    final_keywords.add(leaf)
                 
-                time.sleep(0.2)
+                time.sleep(0.2) 
 
-        # Simpan ke JSON
         result = {
             "account_id": acc['id'],
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "total": len(final_keywords),
-            "keywords": sorted(list(final_keywords))
+            "keywords": sorted(list(final_keywords))[:60]
         }
 
-        file_path = f"data/{acc['id']}.json"
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(f"data/{acc['id']}.json", 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
-            
-        print(f"Berhasil menyimpan {len(final_keywords)} keyword ke {file_path}")
+        print(f"Selesai {acc['id']}: {len(final_keywords)} keywords.")
 
 if __name__ == "__main__":
     main()
